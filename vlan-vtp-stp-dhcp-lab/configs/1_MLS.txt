@@ -1,0 +1,67 @@
+! ===== Multilayer Switch0 (3560-24PS) : VTP SERVER + DHCP + INTER-VLAN GATEWAY =====
+enable
+configure terminal
+hostname MLS
+no ip domain-lookup
+
+! ---- VTP ----
+vtp domain cisco.com
+vtp mode server
+vtp version 2
+vtp password cisco123
+
+! ---- Trunks: Fa0/1->Switch3  Fa0/2->Switch2  Fa0/3->Switch4  Fa0/4->Switch5 ----
+interface range fastEthernet 0/1 - 4
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ no shutdown
+exit
+
+! ---- VLANs ----
+vlan 10
+ name marketing
+vlan 20
+ name sales
+vlan 30
+ name engineering
+vlan 40
+ name finance
+exit
+
+! ---- Inter-VLAN routing (gateways) ----
+ip routing
+interface vlan 10
+ ip address 10.1.1.1 255.255.255.0
+ no shutdown
+interface vlan 20
+ ip address 20.1.1.1 255.255.255.0
+ no shutdown
+interface vlan 30
+ ip address 30.1.1.1 255.255.255.0
+ no shutdown
+interface vlan 40
+ ip address 40.1.1.1 255.255.255.0
+ no shutdown
+exit
+
+! ---- DHCP ----
+ip dhcp excluded-address 10.1.1.1
+ip dhcp excluded-address 20.1.1.1
+ip dhcp excluded-address 30.1.1.1
+ip dhcp excluded-address 40.1.1.1
+
+ip dhcp pool vlan10
+ network 10.1.1.0 255.255.255.0
+ default-router 10.1.1.1
+ip dhcp pool vlan20
+ network 20.1.1.0 255.255.255.0
+ default-router 20.1.1.1
+ip dhcp pool vlan30
+ network 30.1.1.0 255.255.255.0
+ default-router 30.1.1.1
+ip dhcp pool vlan40
+ network 40.1.1.0 255.255.255.0
+ default-router 40.1.1.1
+exit
+end
+write memory

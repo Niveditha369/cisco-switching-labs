@@ -1,0 +1,30 @@
+! ===== Switch1 (2960-24TT) : VTP CLIENT, access for VLAN 10 + 20 =====
+enable
+configure terminal
+hostname Switch1
+no ip domain-lookup
+vtp domain cisco.com
+vtp mode client
+vtp version 2
+vtp password cisco123
+
+! Trunks: Fa0/1 -> Switch2, Fa0/2 -> Switch3
+interface range fastEthernet 0/1 - 2
+ switchport mode trunk
+ no shutdown
+exit
+
+! Access ports: PC2, PC3 on Fa0/3-4 (VLAN 10); PC0, PC1 on Fa0/5-6 (VLAN 20)
+interface range fastEthernet 0/3 - 4        ! PC2, PC3 -> VLAN 10
+ switchport mode access
+ switchport access vlan 10
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+interface range fastEthernet 0/5 - 6        ! PC0, PC1 -> VLAN 20
+ switchport mode access
+ switchport access vlan 20
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+exit
+end
+write memory
