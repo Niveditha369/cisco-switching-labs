@@ -1,0 +1,67 @@
+! ===== AS2 (2960-24TT) : access, VLAN 20 =====
+enable
+configure terminal
+hostname AS2
+no ip domain-lookup
+service password-encryption
+enable secret Cisco@123
+banner motd #Authorized access only#
+vtp mode transparent
+spanning-tree mode rapid-pvst
+vlan 10
+ name SALES
+vlan 20
+ name HR
+vlan 30
+ name IT
+vlan 50
+ name SERVERS
+vlan 99
+ name MGMT
+vlan 998
+ name UNUSED
+vlan 999
+ name NATIVE
+exit
+ip dhcp snooping vlan 10,20,30
+no ip dhcp snooping information option
+ip dhcp snooping
+interface range fa0/1 - 2
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 10,20,30,50,99
+ switchport nonegotiate
+ ip dhcp snooping trust
+ no shutdown
+exit
+interface range fa0/3 - 4
+ switchport mode access
+ switchport access vlan 20
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security mac-address sticky
+ switchport port-security violation restrict
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+exit
+interface range fa0/5 - 24 , gi0/1 - 2
+ switchport mode access
+ switchport access vlan 998
+ shutdown
+exit
+interface vlan 99
+ ip address 10.10.99.12 255.255.255.0
+ no shutdown
+exit
+ip default-gateway 10.10.99.1
+ip domain-name lab.local
+username admin secret Admin@123
+crypto key generate rsa
+! When asked for the modulus size, type 1024 and press Enter, then paste the rest
+ip ssh version 2
+line vty 0 15
+ login local
+ transport input ssh
+exit
+end
+write memory
