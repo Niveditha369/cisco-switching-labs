@@ -2,7 +2,6 @@
 
 A headquarters and two branch offices connected with multi-area OSPF, internet access through PAT, inter-VLAN routing, DHCP, ACLs, SSH, a PAgP EtherChannel and a wireless access point.
 
-A deeper EVE-NG lab is planned later.
 
 ## Topology
 
