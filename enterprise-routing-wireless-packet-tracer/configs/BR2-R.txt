@@ -1,0 +1,45 @@
+enable
+configure terminal
+hostname BR2-R
+no ip domain-lookup
+ip domain-name lab.local
+enable secret Cisco@123
+username admin secret Admin@123
+banner motd #Authorized access only. Disconnect now if you are not authorized.#
+ip access-list standard VTY-ACCESS
+ permit 10.0.0.0 0.255.255.255
+ permit 192.168.0.0 0.0.255.255
+ip dhcp excluded-address 10.1.30.1 10.1.30.10
+ip dhcp pool BR2-LAN
+ network 10.1.30.0 255.255.255.0
+ default-router 10.1.30.1
+interface GigabitEthernet0/0
+ description To HQ-R1 Gig0/2
+ ip address 192.168.2.6 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf authentication message-digest
+ ip ospf message-digest-key 1 md5 Ospf@2026
+ no shutdown
+interface GigabitEthernet0/2
+ description To BR1-R Gig0/2
+ ip address 192.168.2.10 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf authentication message-digest
+ ip ospf message-digest-key 1 md5 Ospf@2026
+ no shutdown
+interface GigabitEthernet0/1
+ description To BR2-SW Fa0/1
+ ip address 10.1.30.1 255.255.255.0
+ no shutdown
+router ospf 1
+ router-id 4.4.4.4
+ passive-interface GigabitEthernet0/1
+ network 192.168.2.4 0.0.0.3 area 1
+ network 192.168.2.8 0.0.0.3 area 1
+ network 10.1.30.0 0.0.0.255 area 1
+ip ssh version 2
+line vty 0 4
+ access-class VTY-ACCESS in
+ login local
+ transport input ssh
+end

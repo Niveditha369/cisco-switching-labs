@@ -1,0 +1,38 @@
+enable
+configure terminal
+hostname BR2-SW
+no ip domain-lookup
+ip domain-name lab.local
+enable secret Cisco@123
+username admin secret Admin@123
+banner motd #Authorized access only. Disconnect now if you are not authorized.#
+ip access-list standard VTY-ACCESS
+ permit 10.0.0.0 0.255.255.255
+ permit 192.168.0.0 0.0.255.255
+interface FastEthernet0/1
+ description To BR2-R Gig0/1
+ switchport mode access
+ no shutdown
+interface FastEthernet0/2
+ description To BR2-AP
+ switchport mode access
+ no shutdown
+interface FastEthernet0/3
+ description PC4
+ switchport mode access
+ no shutdown
+interface FastEthernet0/4
+ description PC5
+ switchport mode access
+ no shutdown
+interface Vlan1
+ description Management
+ ip address 10.1.30.2 255.255.255.0
+ no shutdown
+ip default-gateway 10.1.30.1
+ip ssh version 2
+line vty 0 15
+ access-class VTY-ACCESS in
+ login local
+ transport input ssh
+end

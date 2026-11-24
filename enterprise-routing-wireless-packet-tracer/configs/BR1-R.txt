@@ -1,0 +1,64 @@
+enable
+configure terminal
+hostname BR1-R
+no ip domain-lookup
+ip domain-name lab.local
+enable secret Cisco@123
+username admin secret Admin@123
+banner motd #Authorized access only. Disconnect now if you are not authorized.#
+ip access-list standard VTY-ACCESS
+ permit 10.0.0.0 0.255.255.255
+ permit 192.168.0.0 0.0.255.255
+ip access-list extended BR1-V10-IN
+ permit tcp any host 10.0.20.10 eq 80
+ deny ip any 10.0.20.0 0.0.0.255
+ permit ip any any
+ip dhcp excluded-address 10.1.10.1 10.1.10.10
+ip dhcp excluded-address 10.1.20.1 10.1.20.10
+ip dhcp pool BR1-V10
+ network 10.1.10.0 255.255.255.0
+ default-router 10.1.10.1
+ip dhcp pool BR1-V20
+ network 10.1.20.0 255.255.255.0
+ default-router 10.1.20.1
+interface GigabitEthernet0/0
+ description To HQ-R1 Gig0/1
+ ip address 192.168.2.2 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf authentication message-digest
+ ip ospf message-digest-key 1 md5 Ospf@2026
+ no shutdown
+interface GigabitEthernet0/2
+ description To BR2-R Gig0/2
+ ip address 192.168.2.9 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf authentication message-digest
+ ip ospf message-digest-key 1 md5 Ospf@2026
+ no shutdown
+interface GigabitEthernet0/1
+ description To BR1-SW Fa0/1
+ no ip address
+ no shutdown
+interface GigabitEthernet0/1.10
+ description BR1 VLAN 10
+ encapsulation dot1Q 10
+ ip address 10.1.10.1 255.255.255.0
+ ip access-group BR1-V10-IN in
+interface GigabitEthernet0/1.20
+ description BR1 VLAN 20
+ encapsulation dot1Q 20
+ ip address 10.1.20.1 255.255.255.0
+router ospf 1
+ router-id 3.3.3.3
+ passive-interface GigabitEthernet0/1.10
+ passive-interface GigabitEthernet0/1.20
+ network 192.168.2.0 0.0.0.3 area 1
+ network 192.168.2.8 0.0.0.3 area 1
+ network 10.1.10.0 0.0.0.255 area 1
+ network 10.1.20.0 0.0.0.255 area 1
+ip ssh version 2
+line vty 0 4
+ access-class VTY-ACCESS in
+ login local
+ transport input ssh
+end

@@ -1,0 +1,65 @@
+enable
+configure terminal
+hostname HQ-DSW
+no ip domain-lookup
+ip domain-name lab.local
+enable secret Cisco@123
+username admin secret Admin@123
+banner motd #Authorized access only. Disconnect now if you are not authorized.#
+ip access-list standard VTY-ACCESS
+ permit 10.0.0.0 0.255.255.255
+ permit 192.168.0.0 0.0.255.255
+ip routing
+vlan 10
+ name HQ-USERS
+vlan 20
+ name HQ-SERVERS
+interface FastEthernet0/1
+ description To HQ-R1 Gig0/0
+ no switchport
+ ip address 192.168.1.1 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf authentication message-digest
+ ip ospf message-digest-key 1 md5 Ospf@2026
+ no shutdown
+interface FastEthernet0/2
+ description To HQ-R2 Gig0/0
+ no switchport
+ ip address 192.168.1.5 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf authentication message-digest
+ ip ospf message-digest-key 1 md5 Ospf@2026
+ no shutdown
+interface Vlan10
+ description HQ users gateway
+ ip address 10.0.10.1 255.255.255.0
+ ip helper-address 10.0.20.10
+ no shutdown
+interface Vlan20
+ description HQ servers gateway
+ ip address 10.0.20.1 255.255.255.0
+ no shutdown
+interface port-channel 1
+ description To HQ-ASW
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+interface range FastEthernet0/3 - 4
+ description To HQ-ASW bundle
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ channel-group 1 mode desirable
+ no shutdown
+router ospf 1
+ router-id 5.5.5.5
+ passive-interface Vlan10
+ passive-interface Vlan20
+ network 192.168.1.0 0.0.0.3 area 0
+ network 192.168.1.4 0.0.0.3 area 0
+ network 10.0.10.0 0.0.0.255 area 0
+ network 10.0.20.0 0.0.0.255 area 0
+ip ssh version 2
+line vty 0 15
+ access-class VTY-ACCESS in
+ login local
+ transport input ssh
+end

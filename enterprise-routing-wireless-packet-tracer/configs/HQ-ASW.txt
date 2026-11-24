@@ -1,0 +1,54 @@
+enable
+configure terminal
+hostname HQ-ASW
+no ip domain-lookup
+ip domain-name lab.local
+enable secret Cisco@123
+username admin secret Admin@123
+banner motd #Authorized access only. Disconnect now if you are not authorized.#
+ip access-list standard VTY-ACCESS
+ permit 10.0.0.0 0.255.255.255
+ permit 192.168.0.0 0.0.255.255
+vlan 10
+ name HQ-USERS
+vlan 20
+ name HQ-SERVERS
+interface port-channel 1
+ description To HQ-DSW
+ switchport mode trunk
+interface FastEthernet0/1
+ description To HQ-DSW Fa0/3
+ switchport mode trunk
+ channel-group 1 mode desirable
+ no shutdown
+interface FastEthernet0/5
+ description To HQ-DSW Fa0/4
+ switchport mode trunk
+ channel-group 1 mode desirable
+ no shutdown
+interface FastEthernet0/2
+ description Server1
+ switchport mode access
+ switchport access vlan 20
+ no shutdown
+interface FastEthernet0/3
+ description PC0
+ switchport mode access
+ switchport access vlan 10
+ no shutdown
+interface FastEthernet0/4
+ description PC1
+ switchport mode access
+ switchport access vlan 10
+ no shutdown
+interface Vlan20
+ description Management
+ ip address 10.0.20.2 255.255.255.0
+ no shutdown
+ip default-gateway 10.0.20.1
+ip ssh version 2
+line vty 0 15
+ access-class VTY-ACCESS in
+ login local
+ transport input ssh
+end

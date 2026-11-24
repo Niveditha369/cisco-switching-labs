@@ -1,0 +1,25 @@
+enable
+configure terminal
+hostname ISP-R
+no ip domain-lookup
+ip domain-name lab.local
+enable secret Cisco@123
+username admin secret Admin@123
+banner motd #Authorized access only. Disconnect now if you are not authorized.#
+ip access-list standard VTY-ACCESS
+ permit 198.51.100.0 0.0.0.255
+ permit 203.0.113.0 0.0.0.3
+interface GigabitEthernet0/0
+ description To HQ-R2 Gig0/1
+ ip address 203.0.113.2 255.255.255.252
+ no shutdown
+interface GigabitEthernet0/1
+ description To Server0
+ ip address 198.51.100.1 255.255.255.0
+ no shutdown
+ip ssh version 2
+line vty 0 4
+ access-class VTY-ACCESS in
+ login local
+ transport input ssh
+end

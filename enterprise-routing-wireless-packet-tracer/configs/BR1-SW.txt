@@ -1,0 +1,40 @@
+enable
+configure terminal
+hostname BR1-SW
+no ip domain-lookup
+ip domain-name lab.local
+enable secret Cisco@123
+username admin secret Admin@123
+banner motd #Authorized access only. Disconnect now if you are not authorized.#
+ip access-list standard VTY-ACCESS
+ permit 10.0.0.0 0.255.255.255
+ permit 192.168.0.0 0.0.255.255
+vlan 10
+ name BR1-V10
+vlan 20
+ name BR1-V20
+interface FastEthernet0/1
+ description To BR1-R Gig0/1
+ switchport mode trunk
+ no shutdown
+interface FastEthernet0/2
+ description PC2
+ switchport mode access
+ switchport access vlan 10
+ no shutdown
+interface FastEthernet0/3
+ description PC3
+ switchport mode access
+ switchport access vlan 20
+ no shutdown
+interface Vlan10
+ description Management
+ ip address 10.1.10.2 255.255.255.0
+ no shutdown
+ip default-gateway 10.1.10.1
+ip ssh version 2
+line vty 0 15
+ access-class VTY-ACCESS in
+ login local
+ transport input ssh
+end
