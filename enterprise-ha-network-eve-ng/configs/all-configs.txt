@@ -553,14 +553,13 @@ end
 write memory
 
 !----------------------- FILE-SRV (Linux, run as root) ----------------------
-ip addr add 192.168.10.20/24 dev eth0
-ip link set eth0 up
-ip route add default via 192.168.10.1
+
+ip 192.168.10.20/24 192.168.10.1
+
 
 !----------------------- QNAP-NAS (Linux, run as root) ----------------------
-ip addr add 192.168.10.30/24 dev eth0
-ip link set eth0 up
-ip route add default via 192.168.10.1
+
+ip  192.168.10.30/24 192.168.10.1
 
 
 ##############################################################################
