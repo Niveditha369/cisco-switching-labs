@@ -15,7 +15,7 @@ A highly available enterprise network with three ISPs running eBGP, three PAT ed
 
 ## Tools
 
-EVE-NG, Cisco IOSv 15.6, Cisco IOSvL2 15.2, VPCS, Linux nodes
+EVE-NG, Cisco IOSv 15.6, Cisco IOSvL2 15.2, VPCS
 
 ## Repository
 
