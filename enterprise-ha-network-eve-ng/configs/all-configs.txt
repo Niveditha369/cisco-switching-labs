@@ -1,0 +1,589 @@
+##############################################################################
+# Enterprise HA Network - All Device Configurations
+# Platform : EVE-NG  (Cisco IOSv 15.6 routers, Cisco IOSvL2 15.2 switches)
+# Build order: ISPs -> Edge routers -> Cores -> Access switches -> DHCP -> Servers
+##############################################################################
+#
+# ADDRESSING SUMMARY
+#   ISP AS numbers      : ISP4 65004 | ISP5 65005 | ISP6 65006
+#   ISP4-ISP5           : 100.1.1.0/30   (.1 ISP4, .2 ISP5)
+#   ISP5-ISP6           : 200.1.1.0/30   (.1 ISP5, .2 ISP6)
+#   ISP4-R1             : 10.1.1.0/30    (.1 ISP4, .2 R1)
+#   ISP5-R2             : 20.1.1.0/30    (.1 ISP5, .2 R2)
+#   ISP6-R3             : 30.1.1.0/30    (.1 ISP6, .2 R3)
+#   "Web servers"       : 4.4.4.4 (ISP4 Lo0), 8.8.8.8 (ISP6 Lo0)
+#   Router <-> CORE1    : 172.16.1.0/30, 172.16.2.0/30, 172.16.3.0/30 (router .1, core .2)
+#   Router <-> CORE2    : 172.16.1.4/30, 172.16.2.4/30, 172.16.3.4/30 (router .5, core .6)
+#   VLAN 10  SERVERS    : 192.168.10.0/24  (VIP .1, CORE1 .2, CORE2 .3)
+#   VLAN 100 ACCOUNTS   : 192.168.100.0/24 (VIP .1, CORE1 .2, CORE2 .3)
+#   VLAN 200 SALES      : 192.168.200.0/24 (VIP .1, CORE1 .2, CORE2 .3)
+#   DHCP-SRV .10 | FILE-SRV .20 | QNAP-NAS .30  (all in VLAN 10)
+#
+# DESIGN SUMMARY
+#   - eBGP between ISP4 / ISP5 / ISP6
+#   - R1, R2, R3: default route to ISP, PAT, OSPF default-information originate
+#       R1 metric 10 (primary exit), R2 metric 20, R3 metric 30 (backups)
+#   - CORE1: STP root + HSRP active for VLAN 10 and 100, standby for VLAN 200
+#   - CORE2: STP root + HSRP active for VLAN 200, standby for VLAN 10 and 100
+#   - Rapid-PVST on all switches, LACP EtherChannel (Po1) between the cores
+#   - DHCP server on VLAN 10, reached through ip helper-address on the SVIs
+#
+##############################################################################
+
+
+##############################################################################
+# 1. INTERNET SIDE (BGP)
+##############################################################################
+
+!------------------------------- ISP4 ---------------------------------------
+enable
+configure terminal
+hostname ISP4
+no ip domain-lookup
+!
+interface Loopback0
+ ip address 4.4.4.4 255.255.255.255
+!
+interface GigabitEthernet0/0
+ description To-ISP5
+ ip address 100.1.1.1 255.255.255.252
+ no shutdown
+!
+interface GigabitEthernet0/1
+ description To-R1
+ ip address 10.1.1.1 255.255.255.252
+ no shutdown
+!
+router bgp 65004
+ neighbor 100.1.1.2 remote-as 65005
+ network 4.4.4.4 mask 255.255.255.255
+ network 10.1.1.0 mask 255.255.255.252
+!
+end
+write memory
+
+!------------------------------- ISP5 ---------------------------------------
+enable
+configure terminal
+hostname ISP5
+no ip domain-lookup
+!
+interface Loopback0
+ ip address 5.5.5.5 255.255.255.255
+!
+interface GigabitEthernet0/0
+ description To-ISP4
+ ip address 100.1.1.2 255.255.255.252
+ no shutdown
+!
+interface GigabitEthernet0/1
+ description To-ISP6
+ ip address 200.1.1.1 255.255.255.252
+ no shutdown
+!
+interface GigabitEthernet0/2
+ description To-R2
+ ip address 20.1.1.1 255.255.255.252
+ no shutdown
+!
+router bgp 65005
+ neighbor 100.1.1.1 remote-as 65004
+ neighbor 200.1.1.2 remote-as 65006
+ network 5.5.5.5 mask 255.255.255.255
+ network 20.1.1.0 mask 255.255.255.252
+!
+end
+write memory
+
+!------------------------------- ISP6 ---------------------------------------
+enable
+configure terminal
+hostname ISP6
+no ip domain-lookup
+!
+interface Loopback0
+ ip address 8.8.8.8 255.255.255.255
+!
+interface GigabitEthernet0/0
+ description To-ISP5
+ ip address 200.1.1.2 255.255.255.252
+ no shutdown
+!
+interface GigabitEthernet0/1
+ description To-R3
+ ip address 30.1.1.1 255.255.255.252
+ no shutdown
+!
+router bgp 65006
+ neighbor 200.1.1.1 remote-as 65005
+ network 8.8.8.8 mask 255.255.255.255
+ network 30.1.1.0 mask 255.255.255.252
+!
+end
+write memory
+
+
+##############################################################################
+# 2. EDGE ROUTERS (default route, PAT, OSPF)
+##############################################################################
+
+!-------------------------------- R1 ----------------------------------------
+enable
+configure terminal
+hostname R1
+no ip domain-lookup
+!
+interface GigabitEthernet0/0
+ description To-ISP4
+ ip address 10.1.1.2 255.255.255.252
+ ip nat outside
+ no shutdown
+!
+interface GigabitEthernet0/1
+ description To-CORE1
+ ip address 172.16.1.1 255.255.255.252
+ ip nat inside
+ no shutdown
+!
+interface GigabitEthernet0/2
+ description To-CORE2
+ ip address 172.16.1.5 255.255.255.252
+ ip nat inside
+ no shutdown
+!
+ip route 0.0.0.0 0.0.0.0 10.1.1.1
+!
+access-list 1 permit 192.168.0.0 0.0.255.255
+ip nat inside source list 1 interface GigabitEthernet0/0 overload
+!
+router ospf 1
+ router-id 1.1.1.1
+ network 172.16.1.0 0.0.0.3 area 0
+ network 172.16.1.4 0.0.0.3 area 0
+ default-information originate metric 10
+!
+end
+write memory
+
+!-------------------------------- R2 ----------------------------------------
+enable
+configure terminal
+hostname R2
+no ip domain-lookup
+!
+interface GigabitEthernet0/0
+ description To-ISP5
+ ip address 20.1.1.2 255.255.255.252
+ ip nat outside
+ no shutdown
+!
+interface GigabitEthernet0/1
+ description To-CORE1
+ ip address 172.16.2.1 255.255.255.252
+ ip nat inside
+ no shutdown
+!
+interface GigabitEthernet0/2
+ description To-CORE2
+ ip address 172.16.2.5 255.255.255.252
+ ip nat inside
+ no shutdown
+!
+ip route 0.0.0.0 0.0.0.0 20.1.1.1
+!
+access-list 1 permit 192.168.0.0 0.0.255.255
+ip nat inside source list 1 interface GigabitEthernet0/0 overload
+!
+router ospf 1
+ router-id 2.2.2.2
+ network 172.16.2.0 0.0.0.3 area 0
+ network 172.16.2.4 0.0.0.3 area 0
+ default-information originate metric 20
+!
+end
+write memory
+
+!-------------------------------- R3 ----------------------------------------
+enable
+configure terminal
+hostname R3
+no ip domain-lookup
+!
+interface GigabitEthernet0/0
+ description To-ISP6
+ ip address 30.1.1.2 255.255.255.252
+ ip nat outside
+ no shutdown
+!
+interface GigabitEthernet0/1
+ description To-CORE1
+ ip address 172.16.3.1 255.255.255.252
+ ip nat inside
+ no shutdown
+!
+interface GigabitEthernet0/2
+ description To-CORE2
+ ip address 172.16.3.5 255.255.255.252
+ ip nat inside
+ no shutdown
+!
+ip route 0.0.0.0 0.0.0.0 30.1.1.1
+!
+access-list 1 permit 192.168.0.0 0.0.255.255
+ip nat inside source list 1 interface GigabitEthernet0/0 overload
+!
+router ospf 1
+ router-id 3.3.3.3
+ network 172.16.3.0 0.0.0.3 area 0
+ network 172.16.3.4 0.0.0.3 area 0
+ default-information originate metric 30
+!
+end
+write memory
+
+
+##############################################################################
+# 3. CORE SWITCHES (VLANs, Rapid-PVST roots, HSRP, EtherChannel, OSPF)
+##############################################################################
+
+!------------------------------- CORE1 --------------------------------------
+! STP root + HSRP active for VLAN 10 and 100, standby for VLAN 200
+enable
+configure terminal
+hostname CORE1
+no ip domain-lookup
+ip routing
+spanning-tree mode rapid-pvst
+spanning-tree vlan 10,100 priority 4096
+spanning-tree vlan 200 priority 8192
+!
+vlan 10
+ name SERVERS
+vlan 100
+ name ACCOUNTS
+vlan 200
+ name SALES
+!
+interface GigabitEthernet0/0
+ description To-R1
+ no switchport
+ ip address 172.16.1.2 255.255.255.252
+ no shutdown
+interface GigabitEthernet0/1
+ description To-R2
+ no switchport
+ ip address 172.16.2.2 255.255.255.252
+ no shutdown
+interface GigabitEthernet0/2
+ description To-R3
+ no switchport
+ ip address 172.16.3.2 255.255.255.252
+ no shutdown
+!
+interface range GigabitEthernet1/0 - 1
+ description To-CORE2-Po1
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ channel-group 1 mode active
+ no shutdown
+interface Port-channel1
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+!
+interface GigabitEthernet2/0
+ description To-ACC-SW
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+interface GigabitEthernet2/1
+ description To-SALES-SW
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+interface GigabitEthernet2/2
+ description To-SRV-SW
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+!
+interface Vlan10
+ ip address 192.168.10.2 255.255.255.0
+ standby version 2
+ standby 10 ip 192.168.10.1
+ standby 10 priority 110
+ standby 10 preempt
+ no shutdown
+interface Vlan100
+ ip address 192.168.100.2 255.255.255.0
+ ip helper-address 192.168.10.10
+ standby version 2
+ standby 100 ip 192.168.100.1
+ standby 100 priority 110
+ standby 100 preempt
+ no shutdown
+interface Vlan200
+ ip address 192.168.200.2 255.255.255.0
+ ip helper-address 192.168.10.10
+ standby version 2
+ standby 200 ip 192.168.200.1
+ standby 200 priority 100
+ standby 200 preempt
+ no shutdown
+!
+router ospf 1
+ router-id 11.11.11.11
+ passive-interface default
+ no passive-interface GigabitEthernet0/0
+ no passive-interface GigabitEthernet0/1
+ no passive-interface GigabitEthernet0/2
+ network 172.16.0.0 0.0.255.255 area 0
+ network 192.168.0.0 0.0.255.255 area 0
+!
+end
+write memory
+
+!------------------------------- CORE2 --------------------------------------
+! STP root + HSRP active for VLAN 200, standby for VLAN 10 and 100
+enable
+configure terminal
+hostname CORE2
+no ip domain-lookup
+ip routing
+spanning-tree mode rapid-pvst
+spanning-tree vlan 200 priority 4096
+spanning-tree vlan 10,100 priority 8192
+!
+vlan 10
+ name SERVERS
+vlan 100
+ name ACCOUNTS
+vlan 200
+ name SALES
+!
+interface GigabitEthernet0/0
+ description To-R1
+ no switchport
+ ip address 172.16.1.6 255.255.255.252
+ no shutdown
+interface GigabitEthernet0/1
+ description To-R2
+ no switchport
+ ip address 172.16.2.6 255.255.255.252
+ no shutdown
+interface GigabitEthernet0/2
+ description To-R3
+ no switchport
+ ip address 172.16.3.6 255.255.255.252
+ no shutdown
+!
+interface range GigabitEthernet1/0 - 1
+ description To-CORE1-Po1
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ channel-group 1 mode active
+ no shutdown
+interface Port-channel1
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+!
+interface GigabitEthernet2/0
+ description To-ACC-SW
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+interface GigabitEthernet2/1
+ description To-SALES-SW
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+interface GigabitEthernet2/2
+ description To-SRV-SW
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+!
+interface Vlan10
+ ip address 192.168.10.3 255.255.255.0
+ standby version 2
+ standby 10 ip 192.168.10.1
+ standby 10 priority 100
+ standby 10 preempt
+ no shutdown
+interface Vlan100
+ ip address 192.168.100.3 255.255.255.0
+ ip helper-address 192.168.10.10
+ standby version 2
+ standby 100 ip 192.168.100.1
+ standby 100 priority 100
+ standby 100 preempt
+ no shutdown
+interface Vlan200
+ ip address 192.168.200.3 255.255.255.0
+ ip helper-address 192.168.10.10
+ standby version 2
+ standby 200 ip 192.168.200.1
+ standby 200 priority 110
+ standby 200 preempt
+ no shutdown
+!
+router ospf 1
+ router-id 22.22.22.22
+ passive-interface default
+ no passive-interface GigabitEthernet0/0
+ no passive-interface GigabitEthernet0/1
+ no passive-interface GigabitEthernet0/2
+ network 172.16.0.0 0.0.255.255 area 0
+ network 192.168.0.0 0.0.255.255 area 0
+!
+end
+write memory
+
+
+##############################################################################
+# 4. ACCESS SWITCHES (Layer 2 only)
+##############################################################################
+
+!------------------------------ ACC-SW --------------------------------------
+enable
+configure terminal
+hostname ACC-SW
+no ip domain-lookup
+spanning-tree mode rapid-pvst
+!
+vlan 100
+ name ACCOUNTS
+!
+interface range GigabitEthernet0/0 - 1
+ description Uplinks-To-CORE1-CORE2
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ no shutdown
+!
+interface range GigabitEthernet1/0 - 2
+ description Accounts-Users
+ switchport mode access
+ switchport access vlan 100
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+!
+end
+write memory
+
+!----------------------------- SALES-SW -------------------------------------
+enable
+configure terminal
+hostname SALES-SW
+no ip domain-lookup
+spanning-tree mode rapid-pvst
+!
+vlan 200
+ name SALES
+!
+interface range GigabitEthernet0/0 - 1
+ description Uplinks-To-CORE1-CORE2
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ no shutdown
+!
+interface range GigabitEthernet1/0 - 2
+ description Sales-Users
+ switchport mode access
+ switchport access vlan 200
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+!
+end
+write memory
+
+!------------------------------ SRV-SW --------------------------------------
+enable
+configure terminal
+hostname SRV-SW
+no ip domain-lookup
+spanning-tree mode rapid-pvst
+!
+vlan 10
+ name SERVERS
+!
+interface range GigabitEthernet0/0 - 1
+ description Uplinks-To-CORE1-CORE2
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ no shutdown
+!
+interface range GigabitEthernet1/0 - 2
+ description Server-Ports
+ switchport mode access
+ switchport access vlan 10
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+!
+end
+write memory
+
+
+##############################################################################
+# 5. SERVER ROOM
+##############################################################################
+
+!----------------------- DHCP-SRV (IOSv router) -----------------------------
+enable
+configure terminal
+hostname DHCP-SRV
+no ip domain-lookup
+!
+interface GigabitEthernet0/0
+ description To-SRV-SW
+ ip address 192.168.10.10 255.255.255.0
+ no shutdown
+!
+ip route 0.0.0.0 0.0.0.0 192.168.10.1
+!
+ip dhcp excluded-address 192.168.100.1 192.168.100.3
+ip dhcp excluded-address 192.168.200.1 192.168.200.3
+!
+ip dhcp pool ACCOUNTS-VLAN100
+ network 192.168.100.0 255.255.255.0
+ default-router 192.168.100.1
+ dns-server 8.8.8.8
+!
+ip dhcp pool SALES-VLAN200
+ network 192.168.200.0 255.255.255.0
+ default-router 192.168.200.1
+ dns-server 8.8.8.8
+!
+end
+write memory
+
+!----------------------- FILE-SRV (Linux, run as root) ----------------------
+ip addr add 192.168.10.20/24 dev eth0
+ip link set eth0 up
+ip route add default via 192.168.10.1
+
+!----------------------- QNAP-NAS (Linux, run as root) ----------------------
+ip addr add 192.168.10.30/24 dev eth0
+ip link set eth0 up
+ip route add default via 192.168.10.1
+
+
+##############################################################################
+# 6. END USERS (VPCS)
+##############################################################################
+! VPC12, VPC13, VPC14 (Accounts, VLAN 100) and VPC15, VPC16, VPC17 (Sales, VLAN 200)
+! Run on each PC:
+ip dhcp
+
+
+##############################################################################
+# 7. OPTIONAL: ACL ISOLATION (apply on BOTH CORE1 and CORE2)
+##############################################################################
+configure terminal
+ip access-list extended BLOCK-ACC-TO-SALES
+ deny ip 192.168.100.0 0.0.0.255 192.168.200.0 0.0.0.255
+ permit ip any any
+ip access-list extended BLOCK-SALES-TO-ACC
+ deny ip 192.168.200.0 0.0.0.255 192.168.100.0 0.0.0.255
+ permit ip any any
+interface Vlan100
+ ip access-group BLOCK-ACC-TO-SALES in
+interface Vlan200
+ ip access-group BLOCK-SALES-TO-ACC in
+end
+write memory
