@@ -14,7 +14,7 @@
 | CORE1, CORE2 | IOSvL2 | Layer 3 cores (SVIs, HSRP, STP roots) |
 | ACC-SW, SALES-SW, SRV-SW | IOSvL2 | Layer 2 access switches |
 | DHCP-SRV | IOSv | DHCP server |
-| FILE-SRV, QNAP-NAS | Linux | Server room hosts |
+| FILE-SRV, QNAP-NAS | VPCS | Server room hosts |
 | VPC12-14 | VPCS | Accounts users (VLAN 100) |
 | VPC15-17 | VPCS | Sales users (VLAN 200) |
 
